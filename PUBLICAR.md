@@ -13,7 +13,7 @@ Não precisa de programar.
 - **Código:** este repositório (`gilf-eventos`), branch `main`. É independente do site do fórum GiLF Angola (repositório `Site-Gilf`).
 
 ## 1. Base de dados — Supabase (já feito)
-Para instalar de novo num projecto Supabase vazio: **SQL Editor** → **New query** → colar **todo** o `schema.sql` → **Run**. Depois copie o *Project URL* e a *anon public key* (**Project Settings → API**) para o `config.js`. Nunca use a chave `service_role`.
+Para instalar de novo num projecto Supabase vazio: **SQL Editor** → **New query** → colar **todo** o `schema.sql` → **Run**; depois, da mesma forma, `migracoes/002_bilhetes_pagamentos.sql` (bilhetes, pagamentos e vendas). Depois copie o *Project URL* e a *anon public key* (**Project Settings → API**) para o `config.js`. Nunca use a chave `service_role`.
 
 ## 2. Site — Vercel
 1. Entre em **vercel.com** com a conta GitHub → **Add New → Project**.

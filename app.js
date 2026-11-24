@@ -77,7 +77,23 @@
   function vou(eid) { var r = rsvp(eid); return !!(r && r.estado === "confirmado"); }
   function cheio(e) { return e.nConfirmados >= e.vagas; }
   function catEvento(e) { var g = grupo(e.grupo); return g ? g.categoria : "networking"; }
-  function precoTxt(e) { return e.preco == null ? (e.precoTexto || "Ver condições") : e.preco === 0 ? "Gratuito" : kz(e.preco); }
+  function precoTxt(e) {
+    var b = e.bilhetes || [];
+    if (b.length) {
+      var num = b.map(function (x) { return x.preco; }).filter(function (v) { return v != null; });
+      if (!num.length) return "Sob consulta";
+      var mn = Math.min.apply(null, num), mx = Math.max.apply(null, num);
+      if (mx === 0) return "Gratuito";
+      if (mn === mx) return kz(mn);
+      return mn === 0 ? "Grátis a " + kz(mx) : "Desde " + kz(mn);
+    }
+    return e.preco == null ? (e.precoTexto || "Ver condições") : e.preco === 0 ? "Gratuito" : kz(e.preco);
+  }
+  function ePago(e) { var b = e.bilhetes || []; return b.length ? b.some(function (x) { return x.preco !== 0; }) : e.preco !== 0; }
+  function restante(e, t) { return t.lotacao == null ? null : Math.max(0, t.lotacao - ((e.vendidos || {})[t.nome] || 0)); }
+  function precoBil(t) { return t.preco == null ? "Sob consulta" : t.preco === 0 ? "Grátis" : kz(t.preco); }
+  function slugJs(s2) { return String(s2).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || "bilhete"; }
+  function kzCurto(v) { return v >= 1e6 ? (v / 1e6).toLocaleString("pt-PT", { maximumFractionDigits: 1 }) + " M" : v >= 1e3 ? Math.round(v / 1e3) + " mil" : String(v); }
   function lugarTxt(e) { return e.formato === "online" ? "Evento online" : [e.endereco, e.cidade && e.cidade !== e.endereco ? e.cidade : ""].filter(Boolean).join(", ") || "A confirmar"; }
   function futuro(e) { return dt(e.fim || e.inicio).getTime() >= Date.now(); }
   function porData(a, b) { return dt(a.inicio) - dt(b.inicio); }
@@ -226,8 +242,8 @@
         if (q.cidade && (q.cidade === "Online" ? e.formato !== "online" : e.cidade !== q.cidade)) return false;
         if (q.formato && e.formato !== q.formato) return false;
         if (q.cat && g.categoria !== q.cat) return false;
-        if (q.preco === "gratis" && e.preco !== 0) return false;
-        if (q.preco === "pago" && !(e.preco > 0)) return false;
+        if (q.preco === "gratis" && ePago(e)) return false;
+        if (q.preco === "pago" && !ePago(e)) return false;
         if (iv) { var t = dt(e.inicio); if (t < iv[0] || t >= iv[1]) return false; }
         return !txt || (e.titulo + " " + e.descricao + " " + (e.cidade || "") + " " + g.nome + " " + cat(g.categoria).nome).toLowerCase().indexOf(txt) >= 0;
       });
@@ -275,9 +291,10 @@
     if (e.estado === "cancelado") acao = '<button class="btn" disabled>Evento cancelado</button>';
     else if (e.estado === "rascunho") acao = '<button class="btn" disabled>Rascunho (não publicado)</button>';
     else if (passado) acao = '<button class="btn" disabled>Evento terminado</button>';
-    else if (r && r.estado === "confirmado") acao = '<a class="btn btn--ok" href="#/conta">' + ic("check") + " Vai participar</a>";
+    else if (r && r.estado === "confirmado" && r.pagamento === "pendente") acao = '<button class="btn btn--lg" type="button" data-act="pagar" data-id="' + e.id + '">' + ic("ticket") + " Pagar bilhete</button>";
+    else if (r && r.estado === "confirmado") acao = '<a class="btn btn--ok" href="#/conta">' + ic("check") + (r.pagamento === "pago" ? " Bilhete pago" : " Vai participar") + "</a>";
     else if (r) acao = '<button class="btn btn--line" type="button" data-act="cancelar" data-id="' + e.id + '">Na lista de espera · sair</button>';
-    else acao = '<button class="btn btn--lg" type="button" data-act="participar" data-id="' + e.id + '">' + (full ? "Entrar na lista de espera" : "Participar") + "</button>";
+    else acao = '<button class="btn btn--lg" type="button" data-act="participar" data-id="' + e.id + '">' + (full ? "Entrar na lista de espera" : ePago(e) ? "Comprar bilhete" : "Participar") + "</button>";
     var gestao = souOrg(e.grupo) ? '<div class="adminbar"><div class="wrap adminbar__in"><span>' + ic("shield") + " Gestão do evento</span>" +
       '<a class="btn btn--sm" href="#/gerir/' + e.id + '">' + ic("list") + " Inscrições e check-in</a>" +
       '<a class="btn btn--line btn--sm" href="#/evento/' + e.id + '/editar">' + ic("edit") + " Editar</a></div></div>" : "";
@@ -292,6 +309,8 @@
         '<h2>Detalhes</h2><div class="desc">' + esc(e.descricao) + "</div>" +
         (e.link ? '<p style="margin-top:12px"><a class="link" href="' + esc(e.link) + '" target="_blank" rel="noopener">Mais informação ›</a></p>' : "") +
         '<div class="row" style="margin:16px 0 28px">' + (e.certificado ? '<span class="badge badge--line">' + ic("award") + " Com certificado</span>" : "") + '<span class="badge badge--line">' + esc(cat(catEvento(e)).nome) + "</span>" + (e.formato === "online" ? '<span class="badge badge--teal">Online</span>' : "") + "</div>" +
+        ((e.bilhetes || []).length ? '<h2>Bilhetes</h2><div class="box bils" style="margin-bottom:28px">' + e.bilhetes.map(function (t) { var rest = restante(e, t); return '<div class="bil"><div><b>' + esc(t.nome) + "</b>" + (t.descricao ? '<div class="small">' + esc(t.descricao) + "</div>" : "") + '</div><div class="bil__p"><b>' + esc(precoBil(t)) + "</b>" + (rest != null ? '<div class="small">' + (rest ? rest + " restantes" : "Esgotado") + "</div>" : "") + "</div></div>"; }).join("") +
+          (ePago(e) ? '<p class="small" style="margin:12px 0 0">Pagamento por Multicaixa Express ou transferência bancária. O bilhete com código QR fica válido depois de a organização confirmar o pagamento.</p>' : "") + "</div>" : "") +
         '<div class="box" style="margin-bottom:28px"><h3 style="display:flex;gap:8px;align-items:center">' + ic("users") + ' Reuniões B2B</h3><p class="small" style="margin:0">Ao confirmar, indique o que procura. Antes do evento, a organização sugere-lhe pessoas com quem reunir.</p></div>' +
         '<div class="sec__head"><h2>Participantes (' + e.nConfirmados + ")</h2></div>" +
         (ps === undefined ? carregando() : falhou(ps) || (listaP.length ? '<div class="people" style="margin-bottom:28px">' + listaP.slice(0, 12).map(function (p) { var eu = ST.user && p.id === ST.user.id; var org = orgs.some(function (o) { return o.id === p.id; }); return '<div class="person">' + av(p.nome, "av--l") + "<b>" + esc(p.nome) + "</b>" + (eu ? '<span class="role">Você</span>' : org ? '<span class="role">Organizador</span>' : '<span class="small">' + esc(p.cargo || "Membro") + "</span>") + "</div>"; }).join("") + "</div>" + (e.nConfirmados > 12 ? '<p class="small">E mais ' + (e.nConfirmados - 12) + " pessoas.</p>" : "") : '<div class="empty" style="margin-bottom:28px">Seja o primeiro a confirmar.</div>')) +
@@ -304,7 +323,7 @@
           '<div class="fact">' + ic("clock") + "<div><b>" + esc(cap1(fLong.format(d))) + "</b>" + esc(fHora.format(d)) + " – " + esc(fHora.format(f)) + "</div></div>" +
           (e.formato === "online" ? '<div class="fact">' + ic("video") + "<div><b>Evento online</b>O link é enviado a quem confirmar.</div></div>"
             : '<div class="fact">' + ic("pin") + "<div><b>" + esc(e.local || "Local a confirmar") + "</b>" + esc(lugarTxt(e)) + '<br><a class="link" target="_blank" rel="noopener" href="https://www.google.com/maps/search/' + encodeURIComponent([e.local, e.endereco, e.cidade].filter(function (x) { return x && x !== "A confirmar"; }).join(", ")) + '">Abrir no mapa</a></div></div>') +
-          '<div class="fact">' + ic("ticket") + "<div><b>" + esc(precoTxt(e)) + "</b>" + (e.preco > 0 ? "Pagamento por Multicaixa Express ou referência" : vagas > 0 ? vagas + " lugares disponíveis" : "Esgotado · lista de espera aberta") + "</div></div>" +
+          '<div class="fact">' + ic("ticket") + "<div><b>" + esc(precoTxt(e)) + "</b>" + (vagas > 0 ? vagas + " lugares disponíveis" : "Esgotado · lista de espera aberta") + (ePago(e) ? "<br>Multicaixa Express ou transferência" : "") + "</div></div>" +
           '<div class="btns"><button class="btn btn--line btn--sm" type="button" data-act="ics" data-id="' + e.id + '">' + ic("cal") + ' Calendário</button><a class="btn btn--line btn--sm" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(e.titulo + " — " + fLong.format(d) + " · " + location.href) + '">' + ic("share") + " Partilhar</a></div></div>" +
       "</aside></div></section>" +
       (semelhantes.length ? '<section class="sec"><div class="wrap"><h2>Eventos semelhantes</h2>' + grade(semelhantes.map(cardEvento)) + "</div></section>" : "") +
@@ -418,7 +437,10 @@
       '<div class="two"><label>Início<input name="hi" type="time" required value="' + hi + '"></label><label>Fim<input name="hf" type="time" required value="' + hf + '"></label></div>' +
       '<div id="evLocal"' + (e && e.formato === "online" ? " hidden" : "") + '><div class="two"><label>Local<input name="local" value="' + esc(e ? e.local : "") + '" placeholder="Nome do espaço"></label><label>Bairro / endereço<input name="endereco" value="' + esc(e ? e.endereco : "") + '" placeholder="Ex.: Talatona"></label></div>' +
         '<label style="margin-top:14px">Cidade<input name="cidade" list="dl-cidades" value="' + esc(e ? (e.cidade === "Online" ? "" : e.cidade) : g && g.cidade !== "Online" ? g.cidade : "") + '"></label></div>' +
-      '<div class="two"><label>Lugares<input name="vagas" type="number" min="1" max="20000" value="' + (e ? e.vagas : 40) + '" required></label><label>Preço (Kz)<input name="preco" type="number" min="0" step="100" value="' + (e && e.preco != null ? e.preco : e ? "" : 0) + '"><span class="hint">0 = gratuito · vazio = "ver condições"</span></label></div>' +
+      '<label>Lugares (total do evento)<input name="vagas" type="number" min="1" max="20000" value="' + (e ? e.vagas : 40) + '" required></label>' +
+      '<fieldset class="bilfs"><legend>Bilhetes</legend><p class="hint">Sem tipos de bilhete, o evento é gratuito. Preço vazio = "sob consulta" (o valor é indicado ao confirmar o pagamento); 0 = gratuito. Quantidade vazia = sem limite próprio.</p><div id="bilRows">' +
+        ((e && (e.bilhetes || []).length) ? e.bilhetes : (e && e.preco > 0) ? [{ id: "geral", nome: "Geral", preco: e.preco }] : []).map(linhaBilhete).join("") +
+      '</div><button class="btn btn--line btn--sm" type="button" data-act="bil-add">' + ic("plus") + " Tipo de bilhete</button></fieldset>" +
       '<label>Descrição<textarea name="descricao" required minlength="20" maxlength="5000" placeholder="O que vai acontecer, para quem é e o que levar">' + esc(e ? e.descricao : "") + "</textarea></label>" +
       '<label>Link com mais informação (opcional)<input name="link" type="url" value="' + esc(e ? e.link : "") + '" placeholder="https://"></label>' +
       '<label class="check"><input type="checkbox" name="certificado"' + (e && e.certificado ? " checked" : "") + "> Emitir certificado de participação</label>" +
@@ -426,6 +448,12 @@
       (e ? '<label>Estado<select name="estado">' + [["publicado", "Publicado"], ["rascunho", "Rascunho (só organizadores vêem)"], ["cancelado", "Cancelado"]].map(function (o) { return '<option value="' + o[0] + '"' + (e.estado === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") + "</select></label>" : "") +
       '<div class="btns"><button class="btn btn--lg" type="submit">' + (novo ? "Publicar evento" : "Guardar alterações") + '</button><a class="btn btn--line btn--lg" href="' + (e ? "#/evento/" + e.id : g ? "#/grupo/" + g.id : "#/admin/eventos") + '">Cancelar</a>' +
       (e ? '<button class="btn btn--line btn--lg danger" type="button" data-act="apagar-evento" data-id="' + e.id + '">' + ic("trash") + " Apagar</button>" : "") + "</div></form>";
+  }
+  function linhaBilhete(t) {
+    t = t || {};
+    return '<div class="bilrow"><input type="hidden" name="b_id" value="' + esc(t.id || "") + '"><label>Nome<input name="b_nome" maxlength="40" value="' + esc(t.nome || "") + '" placeholder="Ex.: Normal, VIP, Estudante"></label>' +
+      '<label>Preço (Kz)<input name="b_preco" type="number" min="0" step="100" value="' + (t.preco == null ? "" : t.preco) + '"></label><label>Quantidade<input name="b_lot" type="number" min="1" value="' + (t.lotacao == null ? "" : t.lotacao) + '"></label>' +
+      '<label class="bilrow__d">Descrição<input name="b_desc" maxlength="120" value="' + esc(t.descricao || "") + '" placeholder="Opcional"></label><button class="btn btn--line btn--sm danger" type="button" data-act="bil-del" aria-label="Remover este tipo de bilhete">' + ic("trash") + "</button></div>";
   }
   function ligarFormEvento() { var fmt = document.getElementById("evFmt"); if (fmt) fmt.addEventListener("change", function () { document.getElementById("evLocal").hidden = fmt.value === "online"; }); }
   function pgNovoEvento(gid) {
@@ -445,18 +473,30 @@
     var lista = need("insc:" + eid, function () { return API.listaInscricoes(eid); });
     var L = Array.isArray(lista) ? lista : [], fl = (q.f || "").toLowerCase();
     var conf = L.filter(function (i) { return i.estado === "confirmado"; }), esp = L.filter(function (i) { return i.estado === "espera"; }), pres = L.filter(function (i) { return i.check_in_em; });
-    var vis = L.filter(function (i) { return !fl || (i.nome + " " + i.email + " " + i.telefone + " " + i.codigo).toLowerCase().indexOf(fl) >= 0; });
+    var vis = L.filter(function (i) { return (!fl || (i.nome + " " + i.email + " " + i.telefone + " " + i.codigo).toLowerCase().indexOf(fl) >= 0) && (!q.p || i.pagamento === q.p); });
+    var soma = function (a) { return a.reduce(function (x, i) { return x + (i.valor || 0); }, 0); };
+    var pagos = conf.filter(function (i) { return i.pagamento === "pago"; }), porPagar = conf.filter(function (i) { return i.pagamento === "pendente"; });
     var camAberta = !!scan;
     main.innerHTML = '<div class="wrap" style="padding:26px 0 50px"><div class="small"><a class="link" href="#/evento/' + e.id + '">' + esc(e.titulo) + "</a> · " + esc(quando(e.inicio)) + "</div><h1>Inscrições e check-in</h1>" +
-      '<div class="stats"><div class="stat"><b>' + conf.length + "</b><span>confirmados de " + e.vagas + '</span></div><div class="stat"><b>' + pres.length + '</b><span>presentes</span></div><div class="stat"><b>' + esp.length + '</b><span>em lista de espera</span></div><div class="stat"><b>' + Math.max(0, e.vagas - conf.length) + "</b><span>lugares livres</span></div></div>" +
+      '<div class="stats"><div class="stat"><b>' + conf.length + "</b><span>confirmados de " + e.vagas + '</span></div><div class="stat"><b>' + pres.length + '</b><span>presentes</span></div><div class="stat"><b>' + esp.length + '</b><span>em lista de espera</span></div><div class="stat"><b>' + Math.max(0, e.vagas - conf.length) + "</b><span>lugares livres</span></div>" +
+        (ePago(e) ? '<div class="stat stat--ok"><b>' + esc(kz(soma(pagos))) + "</b><span>recebido · " + pagos.length + ' bilhetes pagos</span></div><div class="stat stat--gold"><b>' + esc(kz(soma(porPagar))) + "</b><span>por receber · " + porPagar.length + " reservas</span></div>" : "") + "</div>" +
       '<div class="box checkin"><h2 style="font-size:1.15rem">Check-in à entrada</h2><form class="cform" data-form="checkin" data-id="' + e.id + '"><input name="codigo" required placeholder="Código do bilhete (ex.: GE-AB12CD)" aria-label="Código do bilhete" autocomplete="off" style="text-transform:uppercase"><button class="btn" type="submit">' + ic("check") + ' Registar</button><button class="btn btn--line" type="button" data-act="camera" data-id="' + e.id + '">' + ic("qr") + " Ler QR</button></form>" +
         '<div id="camBox"' + (camAberta ? "" : " hidden") + '><video id="cam" playsinline muted></video><button class="btn btn--line btn--sm" type="button" data-act="parar-camera">Parar câmara</button></div><div id="ciMsg" aria-live="polite"></div></div>' +
-      '<div class="sec__head" style="margin-top:26px"><h2>Lista (' + L.length + ')</h2><div class="btns"><input class="search-in" id="gF" type="search" placeholder="Procurar nome, telefone, código" value="' + esc(q.f || "") + '" aria-label="Procurar"><button class="btn btn--line btn--sm" type="button" data-act="csv-insc" data-id="' + e.id + '">' + ic("download") + " Exportar CSV</button></div></div>" +
-      (lista === undefined ? carregando() : falhou(lista) || (vis.length ? '<div class="tablewrap"><table class="tbl"><thead><tr><th>Presente</th><th>Nome</th><th>Contacto</th><th>Estado</th><th>Código</th><th class="hide-s">Procura</th></tr></thead><tbody>' +
-        vis.map(function (i) { return '<tr><td><input type="checkbox" aria-label="Presente: ' + esc(i.nome) + '" data-pres="' + esc(i.id) + '"' + (i.check_in_em ? " checked" : "") + (i.estado !== "confirmado" ? " disabled" : "") + "></td><td><b>" + esc(i.nome) + '</b><div class="small">' + esc([i.cargo, i.organizacao].filter(Boolean).join(" · ")) + "</div></td><td>" + (i.telefone ? '<a class="link" target="_blank" rel="noopener" href="' + wa("Olá " + String(i.nome).split(" ")[0] + ", sobre o evento «" + e.titulo + "»: ", i.telefone) + '">' + esc(i.telefone) + "</a><br>" : "") + '<span class="small">' + esc(i.email || "") + "</span></td><td>" + (i.estado === "confirmado" ? '<span class="badge badge--ok">Confirmado</span>' : '<span class="badge badge--line">Espera</span>') + '</td><td class="code">' + esc(i.codigo) + '</td><td class="hide-s small">' + esc(i.objectivo || "") + (i.quer_b2b ? " · B2B" : "") + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<div class="empty">Ainda sem inscrições.</div>')) + "</div>";
+      '<div class="sec__head" style="margin-top:26px"><h2>Lista (' + L.length + ')</h2><div class="btns"><input class="search-in" id="gF" type="search" placeholder="Procurar nome, telefone, código" value="' + esc(q.f || "") + '" aria-label="Procurar">' +
+        (ePago(e) ? '<select class="search-in" id="gP" aria-label="Filtrar por pagamento"><option value="">Todos os pagamentos</option>' + [["pendente", "Por pagar"], ["pago", "Pagos"], ["gratis", "Gratuitos"]].map(function (o) { return '<option value="' + o[0] + '"' + (q.p === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") + "</select>" : "") + '<button class="btn btn--line btn--sm" type="button" data-act="csv-insc" data-id="' + e.id + '">' + ic("download") + " Exportar CSV</button></div></div>" +
+      (lista === undefined ? carregando() : falhou(lista) || (vis.length ? '<div class="tablewrap"><table class="tbl"><thead><tr><th>Presente</th><th>Nome</th><th>Contacto</th><th>Estado</th><th>Bilhete</th><th>Pagamento</th><th>Código</th><th class="hide-s">Procura</th></tr></thead><tbody>' +
+        vis.map(function (i) { return '<tr><td><input type="checkbox" aria-label="Presente: ' + esc(i.nome) + '" data-pres="' + esc(i.id) + '"' + (i.check_in_em ? " checked" : "") + (i.estado !== "confirmado" || i.pagamento === "pendente" ? " disabled" : "") + "></td><td><b>" + esc(i.nome) + '</b><div class="small">' + esc([i.cargo, i.organizacao].filter(Boolean).join(" · ")) + "</div></td><td>" + (i.telefone ? '<a class="link" target="_blank" rel="noopener" href="' + wa("Olá " + String(i.nome).split(" ")[0] + ", sobre o evento «" + e.titulo + "»: ", i.telefone) + '">' + esc(i.telefone) + "</a><br>" : "") + '<span class="small">' + esc(i.email || "") + "</span></td><td>" + (i.estado === "confirmado" ? '<span class="badge badge--ok">Confirmado</span>' : '<span class="badge badge--line">Espera</span>') + "</td><td>" + esc(i.tipo_bilhete || "Geral") + '<div class="small">' + (i.valor ? esc(kz(i.valor)) : i.pagamento === "gratis" ? "Grátis" : "Sob consulta") + "</div></td><td>" + celulaPagamento(i, e) + '</td><td class="code">' + esc(i.codigo) + '</td><td class="hide-s small">' + esc(i.objectivo || "") + (i.quer_b2b ? " · B2B" : "") + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<div class="empty">Ainda sem inscrições.</div>')) + "</div>";
     if (camAberta && scan.stream) { var v = document.getElementById("cam"); v.srcObject = scan.stream; v.play().catch(function () {}); scan.video = v; }
+    var gp = document.getElementById("gP"); if (gp) gp.addEventListener("change", function () { q.p = gp.value; location.hash = "#/gerir/" + eid + qsBuild(copia(q)); });
     var gf = document.getElementById("gF"); if (gf) gf.addEventListener("input", function () { q.f = gf.value; history.replaceState(null, "", "#/gerir/" + eid + qsBuild(copia(q))); pgGerir(eid, q); var n = document.getElementById("gF"); n.focus(); n.setSelectionRange(n.value.length, n.value.length); });
     main.querySelectorAll("[data-pres]").forEach(function (c) { c.addEventListener("change", function () { acao(function () { return API.marcarPresenca(c.dataset.pres, c.checked); }, c.checked ? "Presença registada" : "Presença removida", ["insc:" + eid]).catch(function () {}); }); });
+  }
+  function celulaPagamento(i, e) {
+    if (i.pagamento === "gratis") return '<span class="small">Gratuito</span>';
+    if (i.pagamento === "pago") return '<span class="badge badge--ok">' + ic("check") + ' Pago</span><div class="small">' + esc((i.metodo || "") + (i.pago_em ? " · " + fCurta.format(dt(i.pago_em)) : "")) + '</div><button class="linkbtn small" type="button" data-act="anular-pag" data-id="' + esc(i.id) + '" data-ev="' + e.id + '">Anular</button>';
+    if (i.estado !== "confirmado") return '<span class="small">Paga quando tiver lugar</span>';
+    return '<span class="badge badge--gold">Por pagar</span>' + (i.expira_em ? '<div class="small">até ' + esc(fCurta.format(dt(i.expira_em)) + " " + fHora.format(dt(i.expira_em))) + "</div>" : "") +
+      '<button class="btn btn--sm" type="button" data-act="conf-pag" data-id="' + esc(i.id) + '" data-ev="' + e.id + '" data-valor="' + (i.valor || "") + '" data-nome="' + esc(i.nome) + '">Confirmar pagamento</button>';
   }
   async function fazerCheckIn(eid, cod) {
     var html;
@@ -507,11 +547,15 @@
       corpo = '<div class="points" style="margin-bottom:22px"><b>' + pontos() + '</b><div><strong style="color:#f2dfab">Pontos de liderança</strong><br><span class="small" style="color:#d8c8a6">Participações, grupos, grupos que organiza e perfil completo. Os membros mais activos são indicados à Comissão dos Prémios Líderes Angola.</span></div></div>' +
         "<h2>Próximos (" + prox.length + ")</h2>" +
         (prox.length ? prox.map(function (e) {
-          var r = rsvp(e.id), ok = r.estado === "confirmado";
-          return '<div class="ticket"><a class="ratio" href="#/evento/' + e.id + '">' + capa(catEvento(e), e.id, e.oficial) + "</a><div>" +
-            '<span class="badge ' + (ok ? "badge--ok" : "badge--line") + '">' + (ok ? "Confirmado" : "Lista de espera") + '</span><div class="when" style="margin-top:6px">' + esc(quando(e.inicio)) + '</div><h3 style="margin:2px 0"><a href="#/evento/' + e.id + '">' + esc(e.titulo) + '</a></h3><div class="small">' + esc(lugarTxt(e)) + '</div><div class="code" style="margin:6px 0">' + esc(r.codigo) + "</div>" +
-            '<div class="btns"><button class="btn btn--line btn--sm" type="button" data-act="ics" data-id="' + e.id + '">Calendário</button><button class="btn btn--line btn--sm" type="button" data-act="cancelar" data-id="' + e.id + '">Cancelar</button></div></div>' +
-            (ok ? '<div class="qr" data-qr="' + esc(r.codigo + "|" + e.id) + '" role="img" aria-label="Código QR de entrada"></div>' : "<div></div>") + "</div>";
+          var r = rsvp(e.id), ok = r.estado === "confirmado", porPagar = ok && r.pagamento === "pendente", valido = ok && !porPagar;
+          var badge = !ok ? '<span class="badge badge--line">Lista de espera</span>' : porPagar ? '<span class="badge badge--gold">Por pagar</span>' : r.pagamento === "pago" ? '<span class="badge badge--ok">' + ic("check") + " Pago</span>" : '<span class="badge badge--ok">Confirmado</span>';
+          return '<div class="ticket"><a class="ratio" href="#/evento/' + e.id + '">' + capa(catEvento(e), e.id, e.oficial) + "</a><div>" + badge +
+            '<div class="when" style="margin-top:6px">' + esc(quando(e.inicio)) + '</div><h3 style="margin:2px 0"><a href="#/evento/' + e.id + '">' + esc(e.titulo) + '</a></h3><div class="small">' + esc(lugarTxt(e)) + "</div>" +
+            ((r.tipo || r.valor) ? '<div class="small"><b>' + esc(r.tipo || "Geral") + "</b>" + (r.valor ? " · " + esc(kz(r.valor)) : "") + "</div>" : "") +
+            '<div class="code" style="margin:6px 0">' + esc(r.codigo) + "</div>" +
+            (porPagar && r.expira ? '<div class="small">Pague até ' + esc(fCurta.format(dt(r.expira)) + " " + fHora.format(dt(r.expira))) + "</div>" : "") +
+            '<div class="btns">' + (porPagar ? '<button class="btn btn--sm" type="button" data-act="pagar" data-id="' + e.id + '">' + ic("ticket") + " Pagar</button>" : "") + '<button class="btn btn--line btn--sm" type="button" data-act="ics" data-id="' + e.id + '">Calendário</button><button class="btn btn--line btn--sm" type="button" data-act="cancelar" data-id="' + e.id + '">Cancelar</button></div></div>' +
+            (valido ? '<div class="qr" data-qr="' + esc(r.codigo + "|" + e.id) + '" role="img" aria-label="Código QR de entrada"></div>' : porPagar ? '<div class="qr qr--off" aria-label="QR disponível após o pagamento">QR após o pagamento</div>' : "<div></div>") + "</div>";
         }).join("") : '<div class="empty">Sem eventos marcados. <a class="link" href="#/procurar">Encontrar eventos</a></div>') +
         (pass.length ? '<h2 style="margin-top:28px">Passados</h2>' + pass.map(itemEvento).join("") : "");
     }
@@ -524,7 +568,7 @@
   /* ================= administração ================= */
   function adminNav(t) {
     return '<div class="adminhead"><div class="wrap"><div class="adminhead__t">' + ic("shield") + ' Administração</div><div class="tabs">' +
-      [["", "Resumo"], ["grupos", "Grupos"], ["eventos", "Eventos"], ["utilizadores", "Utilizadores"], ["moderacao", "Moderação"]].map(function (x) { return '<a href="#/admin' + (x[0] ? "/" + x[0] : "") + '" class="' + (t === x[0] ? "on" : "") + '">' + x[1] + "</a>"; }).join("") + "</div></div></div>";
+      [["", "Resumo"], ["vendas", "Vendas"], ["grupos", "Grupos"], ["eventos", "Eventos"], ["utilizadores", "Utilizadores"], ["pagamentos", "Pagamentos"], ["moderacao", "Moderação"]].map(function (x) { return '<a href="#/admin' + (x[0] ? "/" + x[0] : "") + '" class="' + (t === x[0] ? "on" : "") + '">' + x[1] + "</a>"; }).join("") + "</div></div></div>";
   }
   function pgAdmin(sub, q) {
     if (!ST.user) { main.innerHTML = '<div class="wrap--n wiz"><h1>Administração</h1><p class="muted">Entre com uma conta de administrador.</p><button class="btn" type="button" data-act="entrar" data-then="#/admin">Entrar</button></div>'; return; }
@@ -570,6 +614,42 @@
         return '<div class="comment">' + av(m.nome) + "<div><b>" + esc(m.nome) + '</b> <span class="small">' + esc(haQuanto(m.quando)) + " · " + (m.tipo === "comentario" ? 'comentário em <a class="link" href="#/evento/' + esc(m.onde) + '">' + esc((evento(m.onde) || {}).titulo || m.onde) + "</a>" : 'publicação em <a class="link" href="#/grupo/' + esc(m.onde) + '?tab=discussoes">' + esc((grupo(m.onde) || {}).nome || m.onde) + "</a>") +
           '</span> <button class="linkbtn" type="button" data-act="' + (m.tipo === "comentario" ? "apagar-com" : "apagar-post") + '" data-id="' + esc(m.id) + '" data-ev="' + esc(m.onde) + '" data-g="' + esc(m.onde) + '">Apagar</button><div>' + esc(m.t) + "</div></div></div>";
       }).join("") + "</div>" : '<div class="empty">Sem conteúdos.</div>'));
+    } else if (sub === "vendas") {
+      var V = need("admin:vendas", API.adminVendas);
+      if (V === undefined) corpo = carregando();
+      else if (V.erro) corpo = falhou(V);
+      else {
+        var activos = (V.por_evento || []).filter(function (x) { return x.vendidos || x.pagos || x.receita; });
+        corpo = '<div class="sec__head"><h2>Vendas de bilhetes</h2><button class="btn btn--line btn--sm" type="button" data-act="csv-vendas">' + ic("download") + " Exportar CSV</button></div>" +
+          '<div class="stats">' +
+            '<div class="stat stat--ok"><b>' + esc(kz(V.receita || 0)) + "</b><span>receita confirmada</span></div>" +
+            '<div class="stat stat--gold"><b>' + esc(kz(V.pendente || 0)) + "</b><span>por receber (reservas)</span></div>" +
+            '<div class="stat"><b>' + (V.pagos || 0) + "</b><span>bilhetes pagos</span></div>" +
+            '<div class="stat"><b>' + (V.por_pagar || 0) + "</b><span>reservas por pagar</span></div>" +
+            '<div class="stat"><b>' + (V.gratis || 0) + "</b><span>inscrições gratuitas</span></div>" +
+            '<div class="stat"><b>' + (V.espera || 0) + "</b><span>em lista de espera</span></div>" +
+            '<div class="stat"><b>' + (V.pagos ? esc(kz(Math.round((V.receita || 0) / V.pagos))) : "—") + "</b><span>valor médio por bilhete</span></div>" +
+          "</div>" +
+          '<div class="box chartbox"><h3>Receita confirmada por dia · últimos 30 dias</h3>' + grafico(V.por_dia || []) + "</div>" +
+          '<h2 style="margin-top:26px">Por evento</h2>' +
+          (activos.length ? '<div class="tablewrap"><table class="tbl"><thead><tr><th>Evento</th><th>Vendidos</th><th>Pagos</th><th>Por pagar</th><th>Receita</th><th>Por receber</th><th class="hide-s">Presenças</th><th></th></tr></thead><tbody>' +
+            activos.map(function (x) { return '<tr><td><a class="link" href="#/evento/' + esc(x.id) + '">' + esc(x.titulo) + '</a><div class="small">' + esc(fCurta.format(dt(x.inicio))) + "</div></td><td>" + x.vendidos + " / " + x.vagas + "</td><td>" + x.pagos + "</td><td>" + x.por_pagar + '</td><td class="num">' + esc(kz(x.receita)) + '</td><td class="num">' + esc(kz(x.pendente)) + '</td><td class="hide-s">' + x.presencas + '</td><td><a class="btn btn--line btn--sm" href="#/gerir/' + esc(x.id) + '">Gerir</a></td></tr>'; }).join("") + "</tbody></table></div>" : '<div class="empty">Ainda sem vendas.</div>') +
+          '<div class="two2" style="margin-top:26px"><div><h2>Por tipo de bilhete</h2>' +
+            ((V.por_tipo || []).length ? '<div class="tablewrap"><table class="tbl"><thead><tr><th>Tipo</th><th>Vendidos</th><th>Receita</th></tr></thead><tbody>' + V.por_tipo.map(function (x) { return "<tr><td>" + esc(x.tipo) + "</td><td>" + x.vendidos + '</td><td class="num">' + esc(kz(x.receita)) + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<div class="empty">Sem dados.</div>') +
+          "</div><div><h2>Por método de pagamento</h2>" +
+            ((V.por_metodo || []).length ? '<div class="tablewrap"><table class="tbl"><thead><tr><th>Método</th><th>Pagamentos</th><th>Receita</th></tr></thead><tbody>' + V.por_metodo.map(function (x) { return "<tr><td>" + esc(x.metodo) + "</td><td>" + x.n + '</td><td class="num">' + esc(kz(x.receita)) + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<div class="empty">Sem pagamentos confirmados.</div>') +
+          "</div></div>";
+      }
+    } else if (sub === "pagamentos") {
+      var P = ST.pagamento || {};
+      corpo = '<div style="max-width:680px"><h2>Dados de pagamento</h2><p class="muted">Aparecem a quem reserva um bilhete pago. Pode alterá-los a qualquer momento.</p><form class="form" data-form="pagamentos">' +
+        '<label>Titular da conta<input name="titular" value="' + esc(P.titular || "") + '" placeholder="Ex.: Luadeira Digital Angola, Lda."></label>' +
+        '<div class="two"><label>Banco<input name="banco" value="' + esc(P.banco || "") + '"></label><label>IBAN<input name="iban" value="' + esc(P.iban || "") + '" placeholder="AO06 ..."></label></div>' +
+        '<div class="two"><label>Número Multicaixa Express<input name="mcx" value="' + esc(P.mcx || "") + '" placeholder="9xx xxx xxx"></label><label>WhatsApp para comprovativos<input name="whatsapp" value="' + esc(P.whatsapp || "") + '" placeholder="244 9xx xxx xxx"></label></div>' +
+        '<label>Prazo para pagar (horas)<input name="prazo" type="number" min="1" max="720" value="' + esc(P.prazo_horas || 48) + '"><span class="hint">Depois deste prazo, a reserva não paga expira e o lugar passa à lista de espera.</span></label>' +
+        '<label>Instruções adicionais<textarea name="instrucoes" maxlength="600">' + esc(P.instrucoes || "") + "</textarea></label>" +
+        '<div><button class="btn btn--lg" type="submit">Guardar</button></div></form>' +
+        '<p class="note" style="margin-top:20px">O pagamento automático online (Multicaixa / EMIS) exige um contrato com um agregador de pagamentos, por exemplo a ProxyPay. Até lá, a organização confirma cada pagamento em <b>Inscrições</b> do evento, e a confirmação valida o bilhete.</p></div>';
     } else if (sub === "novo-evento") {
       var gsel = ST.grupos.filter(function (g) { return g.estado === "aprovado"; });
       corpo = '<div style="max-width:760px"><h2>Novo evento</h2>' + (gsel.length ? formEvento(null, null, gsel) : '<div class="empty">Crie primeiro um grupo.</div>') + "</div>";
@@ -586,6 +666,29 @@
       acao(function () { return API.adminPapel(id, v); }, "Papel actualizado", ["admin:users"]).catch(function () {});
     }); });
   }
+  function grafico(dias) {
+    if (!dias.length || !dias.some(function (d2) { return d2.receita > 0; })) return '<div class="empty">Ainda sem pagamentos confirmados nos últimos 30 dias.</div>';
+    var W = 720, H = 220, pl = 58, pr = 10, pt = 14, pb = 26, n = dias.length, max = Math.max.apply(null, dias.map(function (d2) { return d2.receita; }));
+    var pot = Math.pow(10, Math.floor(Math.log10(max))), top = Math.ceil(max / pot) * pot, iw = W - pl - pr, ih = H - pt - pb, bw = iw / n, base = pt + ih;
+    var svg = '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Receita confirmada por dia nos últimos 30 dias">';
+    [0, 0.5, 1].forEach(function (f2) { var y = base - ih * f2; svg += '<line class="chart__grid" x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y + '" y2="' + y + '"/><text class="chart__lab" x="' + (pl - 8) + '" y="' + (y + 4) + '" text-anchor="end">' + esc(kzCurto(top * f2)) + "</text>"; });
+    dias.forEach(function (d2, i) {
+      var x = pl + i * bw + 1, w = Math.max(2, bw - 2), h = d2.receita ? Math.max(3, ih * d2.receita / top) : 0, y = base - h, r2 = Math.min(4, w / 2, h);
+      var dd = new Date(d2.dia + "T12:00"), tip = fCurta.format(dd) + " · " + kz(d2.receita) + " · " + d2.reservas + (d2.reservas === 1 ? " reserva" : " reservas");
+      svg += '<g class="chart__col" data-tip="' + esc(tip) + '"><rect class="chart__hit" x="' + (pl + i * bw) + '" y="' + pt + '" width="' + bw + '" height="' + ih + '"/>' +
+        (h ? '<path class="chart__bar" d="M' + x + "," + base + "V" + (y + r2) + "Q" + x + "," + y + " " + (x + r2) + "," + y + "H" + (x + w - r2) + "Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r2) + "V" + base + 'Z"/>' : "") + "<title>" + esc(tip) + "</title></g>";
+      if (i % 7 === 0 || (i === n - 1 && (n - 1) % 7 >= 3)) svg += '<text class="chart__lab" x="' + (pl + i * bw + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + esc(P2(dd.getDate()) + "/" + P2(dd.getMonth() + 1)) + "</text>";
+    });
+    svg += '<line class="chart__axis" x1="' + pl + '" x2="' + (W - pr) + '" y1="' + base + '" y2="' + base + '"/></svg>';
+    return '<div class="chartwrap">' + svg + '<div class="chart__tip" hidden></div></div>';
+  }
+  document.addEventListener("pointerover", function (ev) {
+    var col = ev.target.closest && ev.target.closest(".chart__col"), wrap = col && col.closest(".chartwrap"); if (!wrap) return;
+    var tipEl = wrap.querySelector(".chart__tip"), r1 = wrap.getBoundingClientRect(), r2 = col.getBoundingClientRect();
+    tipEl.textContent = col.dataset.tip; tipEl.hidden = false;
+    tipEl.style.left = Math.min(r1.width - 180, Math.max(0, r2.left - r1.left + r2.width / 2 - 90)) + "px";
+  });
+  document.addEventListener("pointerout", function (ev) { var wrap = ev.target.closest && ev.target.closest(".chartwrap"); if (wrap && !wrap.contains(ev.relatedTarget)) wrap.querySelector(".chart__tip").hidden = true; });
   function linhaGrupoPendente(g) {
     return '<div class="box pend"><div class="gmini"><div class="ratio">' + capa(g.categoria, g.id) + '</div><div><a class="link" href="#/grupo/' + g.id + '"><b>' + esc(g.nome) + '</b></a><div class="small">' + esc(g.cidade) + " · " + esc(cat(g.categoria).nome) + '</div></div></div><p class="small" style="margin:10px 0;white-space:pre-line">' + esc(g.descricao) + '</p><div class="btns"><button class="btn btn--sm" type="button" data-act="aprovar" data-id="' + g.id + '">Aprovar</button><button class="btn btn--line btn--sm" type="button" data-act="rejeitar" data-id="' + g.id + '">Rejeitar</button></div></div>';
   }
@@ -627,22 +730,44 @@
   function precisaConta(depois) { if (ST.user) return true; abrirConta("registar", depois || null); return false; }
 
   function abrirParticipar(e) {
-    var g = grupo(e.grupo) || {}, full = cheio(e);
-    abrir('<h2 id="mTitle">' + (full ? "Entrar na lista de espera" : "Confirmar participação") + '</h2><p class="small">' + esc(e.titulo) + " · " + esc(quando(e.inicio)) + "</p>" +
-      '<form class="form" data-form="participar" data-id="' + e.id + '">' +
+    var g = grupo(e.grupo) || {}, full = cheio(e), B = e.bilhetes || [], prim = -1;
+    B.forEach(function (t, i) { if (prim < 0 && restante(e, t) !== 0) prim = i; });
+    var tipos = B.length ? '<fieldset class="tipos"><legend>Tipo de bilhete</legend>' + B.map(function (t, i) {
+      var rest = restante(e, t), esg = rest === 0;
+      return '<label class="tipo' + (esg ? " tipo--off" : "") + '"><input type="radio" name="tipo" value="' + esc(t.id) + '"' + (esg ? " disabled" : "") + (i === prim ? " checked" : "") + ' required>' +
+        '<span class="tipo__n"><b>' + esc(t.nome) + "</b>" + (t.descricao ? "<small>" + esc(t.descricao) + "</small>" : "") + '</span><span class="tipo__p"><b>' + esc(precoBil(t)) + "</b>" + (rest != null ? "<small>" + (esg ? "Esgotado" : rest + " restantes") + "</small>" : "") + "</span></label>";
+    }).join("") + "</fieldset>" : "";
+    var prazo = (ST.pagamento && ST.pagamento.prazo_horas) || 48;
+    abrir('<h2 id="mTitle">' + (full ? "Entrar na lista de espera" : ePago(e) ? "Comprar bilhete" : "Confirmar participação") + '</h2><p class="small">' + esc(e.titulo) + " · " + esc(quando(e.inicio)) + "</p>" +
+      '<form class="form" data-form="participar" data-id="' + e.id + '">' + tipos +
       '<label>O que procura neste evento?<select name="objectivo"><option>Networking</option><option>Encontrar investidores</option><option>Encontrar clientes</option><option>Encontrar parceiros ou fornecedores</option><option>Emprego ou talento</option><option>Aprender</option></select></label>' +
       '<label class="check"><input type="checkbox" name="b2b" checked> Quero sugestões de reuniões B2B</label>' +
       (!souMembro(g.id) ? '<p class="note">Ao participar junta-se também ao grupo <b>' + esc(g.nome) + "</b>.</p>" : "") +
-      (e.preco > 0 ? '<p class="note">Evento pago (' + esc(kz(e.preco)) + "). A organização envia-lhe por WhatsApp a referência para pagar por Multicaixa Express.</p>" : "") +
-      (e.oficial ? '<p class="note">Evento oficial: esta inscrição regista o seu interesse; a Comissão Organizadora confirma o bilhete.</p>' : "") +
-      '<button class="btn btn--lg btn--block" type="submit">' + (full ? "Entrar na lista de espera" : "Confirmar") + "</button></form>");
+      (ePago(e) && !full ? '<p class="note">O lugar fica reservado por ' + prazo + " horas. No passo seguinte recebe os dados para pagar por Multicaixa Express ou transferência. O bilhete com QR fica válido quando a organização confirmar o pagamento.</p>" : "") +
+      '<button class="btn btn--lg btn--block" type="submit">' + (full ? "Entrar na lista de espera" : ePago(e) ? "Reservar bilhete" : "Confirmar") + "</button></form>");
+  }
+  function instrucoesPagamento(e, r, nova) {
+    var P = ST.pagamento || {}, valor = r.valor > 0 ? kz(r.valor) : "A indicar pela organização";
+    var msg = "Comprovativo de pagamento — GiLF Eventos\n\nEvento: " + e.titulo + "\nBilhete: " + (r.tipo || "Geral") + "\nValor: " + valor + "\nCódigo da reserva: " + r.codigo + "\nNome: " + (ST.user ? ST.user.nome : "") + "\n\n(anexe aqui o comprovativo)";
+    var temDados = P.mcx || P.iban;
+    abrir('<div class="okmark okmark--gold">' + ic("ticket") + '</div><h2 id="mTitle">' + (nova ? "Reserva feita: falta pagar" : "Pagar bilhete") + "</h2>" +
+      '<div class="paybox"><div><span>Valor</span><b>' + esc(valor) + '</b></div><div><span>Bilhete</span><b>' + esc(r.tipo || "Geral") + '</b></div><div><span>Código da reserva</span><b class="code">' + esc(r.codigo) + "</b></div></div>" +
+      (temDados ? '<div class="paymeth">' +
+        (P.mcx ? '<div><h3>Multicaixa Express</h3><p>Transferir para o número <b>' + esc(P.mcx) + "</b>" + (P.titular ? " (" + esc(P.titular) + ")" : "") + "</p></div>" : "") +
+        (P.iban ? '<div><h3>Transferência bancária</h3><p>IBAN <b class="code">' + esc(P.iban) + "</b>" + (P.banco ? "<br>" + esc(P.banco) : "") + (P.titular ? "<br>Titular: " + esc(P.titular) : "") + "</p></div>" : "") +
+        '<p class="small">Use o código <b>' + esc(r.codigo) + "</b> como descritivo do pagamento.</p></div>"
+        : '<p class="note">A organização envia-lhe os dados de pagamento por WhatsApp.</p>') +
+      (r.expira ? '<p class="note">Pague até <b>' + esc(fLong.format(dt(r.expira)) + ", " + fHora.format(dt(r.expira))) + "</b>. Depois dessa hora a reserva expira e o lugar passa à lista de espera.</p>" : "") +
+      (P.instrucoes ? '<p class="small">' + esc(P.instrucoes) + "</p>" : "") +
+      '<div class="btns"><a class="btn btn--wa" target="_blank" rel="noopener" href="' + wa(msg, P.whatsapp) + '">Enviar comprovativo por WhatsApp</a><a class="btn btn--line" href="#/conta">Os meus bilhetes</a></div>');
   }
   function sucesso(e, r) {
+    if (r.estado === "confirmado" && r.pagamento === "pendente") return instrucoesPagamento(e, r, true);
     var ok = r.estado === "confirmado", d = dt(e.inicio);
     var msg = (ok ? "Confirmo a minha participação" : "Inscrevi-me na lista de espera") + " — GiLF Eventos\n\n" + e.titulo + "\n" + fLong.format(d) + ", " + fHora.format(d) + "\n" + lugarTxt(e) + "\n\nNome: " + (ST.user ? ST.user.nome : "") + "\nCódigo: " + r.codigo;
     abrir('<div class="okmark">' + ic("check") + '</div><h2 id="mTitle">' + (ok ? "Vai participar!" : "Está na lista de espera") + "</h2>" +
-      '<p class="small">' + (ok ? "O bilhete fica em «Os meus eventos». Mostre o código QR à entrada." : "Se alguém cancelar, o lugar passa automaticamente para si e o bilhete aparece em «Os meus eventos».") + "</p>" +
-      (ok ? '<div style="display:flex;gap:14px;align-items:center;margin:14px 0"><div class="qr" data-qr="' + esc(r.codigo + "|" + e.id) + '"></div><div><div class="code">' + esc(r.codigo) + '</div><div class="small">' + esc(quando(e.inicio)) + "</div></div></div>" : '<p class="code">' + esc(r.codigo) + "</p>") +
+      '<p class="small">' + (ok ? "O bilhete fica em «Os meus eventos». Mostre o código QR à entrada." : "Se alguém cancelar, o lugar passa automaticamente para si e aparece em «Os meus eventos»." + (ePago(e) ? " Nessa altura recebe os dados para pagar." : "")) + "</p>" +
+      (ok ? '<div style="display:flex;gap:14px;align-items:center;margin:14px 0"><div class="qr" data-qr="' + esc(r.codigo + "|" + e.id) + '"></div><div><div class="code">' + esc(r.codigo) + '</div><div class="small">' + esc((r.tipo ? r.tipo + " · " : "") + quando(e.inicio)) + "</div></div></div>" : '<p class="code">' + esc(r.codigo) + "</p>") +
       '<div class="btns"><a class="btn btn--wa" target="_blank" rel="noopener" href="' + wa(msg) + '">Enviar à organização</a><button class="btn btn--line" type="button" data-act="ics" data-id="' + e.id + '">Calendário</button></div>');
   }
   function desenharQRs(root) {
@@ -683,11 +808,26 @@
     if (a === "destaque") { acao(function () { return API.editarGrupo(id, { destaque: t.dataset.v === "1" }); }, "Guardado", ["admin:"]).catch(function () {}); return; }
     if (a === "apagar-grupo") { if (!confirm("Apagar este grupo e TODOS os seus eventos e inscrições? Não pode ser desfeito.")) return; acao(function () { return API.apagarGrupo(id); }, "Grupo apagado", ["admin:"]).then(function () { location.hash = "#/admin/grupos"; }).catch(function () {}); return; }
     if (a === "apagar-evento") { if (!confirm("Apagar este evento e todas as inscrições? Para avisar os inscritos, prefira mudar o estado para «Cancelado».")) return; acao(function () { return API.apagarEvento(id); }, "Evento apagado", ["admin:"]).then(function () { location.hash = isAdmin() ? "#/admin/eventos" : "#/conta"; }).catch(function () {}); return; }
+    if (a === "pagar") { var ep = evento(id), rp = rsvp(id); if (ep && rp) instrucoesPagamento(ep, rp, false); return; }
+    if (a === "conf-pag") {
+      abrir('<h2 id="mTitle">Confirmar pagamento</h2><p class="small">' + esc(t.dataset.nome || "") + '</p><form class="form" data-form="conf-pag" data-id="' + esc(id) + '" data-ev="' + esc(t.dataset.ev) + '">' +
+        '<label>Método<select name="metodo"><option>Multicaixa Express</option><option>Transferência bancária</option><option>Numerário</option><option>Outro</option></select></label>' +
+        '<label>Valor recebido (Kz)<input name="valor" type="number" min="0" step="100" value="' + esc(t.dataset.valor || "") + '" required></label>' +
+        '<p class="note">Confirme só depois de ver o dinheiro na conta. O bilhete com QR fica imediatamente válido.</p><button class="btn btn--lg btn--block" type="submit">' + ic("check") + " Confirmar pagamento</button></form>");
+      return;
+    }
+    if (a === "anular-pag") { if (!confirm("Anular este pagamento? O bilhete volta a ficar por pagar.")) return; acao(function () { return API.confirmarPagamento(id, false, "", null); }, "Pagamento anulado", ["insc:" + t.dataset.ev, "admin:vendas"]).catch(function () {}); return; }
+    if (a === "bil-add") { document.getElementById("bilRows").insertAdjacentHTML("beforeend", linhaBilhete({})); var rows = document.querySelectorAll(".bilrow"); rows[rows.length - 1].querySelector("input[name=b_nome]").focus(); return; }
+    if (a === "bil-del") { var row = t.closest(".bilrow"); if (row) row.remove(); return; }
+    if (a === "csv-vendas") {
+      var VV = C["admin:vendas"]; if (!VV || !VV.por_evento) return;
+      csv([["Evento", "Data", "Lugares", "Vendidos", "Pagos", "Por pagar", "Receita (Kz)", "Por receber (Kz)", "Presenças"]].concat(VV.por_evento.map(function (x) { return [x.titulo, fCurta.format(dt(x.inicio)), x.vagas, x.vendidos, x.pagos, x.por_pagar, x.receita, x.pendente, x.presencas]; })), "vendas-gilf-eventos.csv"); return;
+    }
     if (a === "camera") { abrirCamera(id); return; }
     if (a === "parar-camera") { pararCamera(); var cb = document.getElementById("camBox"); if (cb) cb.hidden = true; return; }
     if (a === "csv-insc") {
       var L = C["insc:" + id]; if (!Array.isArray(L)) return; var ee = evento(id);
-      csv([["Nome", "Email", "Telefone", "Cargo", "Organização", "Estado", "Código", "Procura", "B2B", "Presente", "Inscrito em"]].concat(L.map(function (i) { return [i.nome, i.email, i.telefone, i.cargo, i.organizacao, i.estado, i.codigo, i.objectivo, i.quer_b2b ? "sim" : "não", i.check_in_em ? "sim" : "não", fCurta.format(dt(i.criado_em))]; })), "inscricoes-" + ee.id + ".csv"); return;
+      csv([["Nome", "Email", "Telefone", "Cargo", "Organização", "Estado", "Bilhete", "Valor (Kz)", "Pagamento", "Método", "Pago em", "Código", "Procura", "B2B", "Presente", "Inscrito em"]].concat(L.map(function (i) { return [i.nome, i.email, i.telefone, i.cargo, i.organizacao, i.estado, i.tipo_bilhete || "Geral", i.valor || 0, i.pagamento, i.metodo || "", i.pago_em ? fCurta.format(dt(i.pago_em)) : "", i.codigo, i.objectivo, i.quer_b2b ? "sim" : "não", i.check_in_em ? "sim" : "não", fCurta.format(dt(i.criado_em))]; })), "inscricoes-" + ee.id + ".csv"); return;
     }
     if (a === "csv-users") {
       var k = Object.keys(C).filter(function (x) { return x.indexOf("admin:users:") === 0; })[0], U = k && C[k]; if (!Array.isArray(U)) return;
@@ -697,7 +837,7 @@
   });
 
   /* ================= formulários ================= */
-  var TRATADO = { perfil: 1, participar: 1, comentar: 1, post: 1, "editar-grupo": 1, evento: 1, organizador: 1 };
+  var TRATADO = { perfil: 1, participar: 1, comentar: 1, post: 1, "editar-grupo": 1, evento: 1, organizador: 1, "conf-pag": 1, pagamentos: 1 };
   document.addEventListener("submit", async function (ev) {
     var f = ev.target, k = f.dataset && f.dataset.form; if (!k) return;
     ev.preventDefault(); var fd = new FormData(f), id = f.dataset.id, btn = f.querySelector("[type=submit]");
@@ -718,12 +858,19 @@
       if (k === "nova-pw") { await API.novaPassword(fd.get("pw")); toast("Palavra-passe alterada"); f.reset(); if (location.hash.indexOf("nova-password") >= 0) location.hash = "#/conta"; return; }
       if (k === "perfil") { await acao(function () { return API.guardarPerfil({ nome: val("nome"), telefone: val("telefone"), cidade: val("cidade"), cargo: val("cargo"), organizacao: val("organizacao") }); }, "Perfil guardado"); return; }
       if (k === "participar") {
-        var e = evento(id), res = await acao(function () { return API.participar(id, val("objectivo"), !!fd.get("b2b")); }, null, ["part:" + id, "memb:" + e.grupo]);
+        var e = evento(id), res = await acao(function () { return API.participar(id, val("tipo"), val("objectivo"), !!fd.get("b2b")); }, null, ["part:" + id, "memb:" + e.grupo, "admin:vendas", "insc:" + id]);
         sucesso(evento(id) || e, res); return;
       }
       if (k === "comentar") { if (!precisaConta()) return; await acao(function () { return API.comentar(id, val("t")); }, null, ["com:" + id]); return; }
       if (k === "post") { await acao(function () { return API.publicar(id, val("t")); }, "Publicado", ["posts:" + id]); return; }
       if (k === "checkin") { await fazerCheckIn(id, val("codigo")); var inp = document.querySelector('[data-form=checkin] input'); if (inp) { inp.value = ""; inp.focus(); } return; }
+      if (k === "conf-pag") {
+        var vv = val("valor"); fechar();
+        await acao(function () { return API.confirmarPagamento(id, true, val("metodo"), vv === "" ? null : Number(vv)); }, "Pagamento confirmado: bilhete válido", ["insc:" + f.dataset.ev, "admin:vendas"]); return;
+      }
+      if (k === "pagamentos") {
+        await acao(function () { return API.guardarPagamento({ titular: val("titular"), banco: val("banco"), iban: val("iban"), mcx: val("mcx"), whatsapp: val("whatsapp").replace(/\D/g, ""), prazo_horas: Math.max(1, Number(val("prazo")) || 48), instrucoes: val("instrucoes") }); }, "Dados de pagamento guardados"); return;
+      }
       if (k === "organizador") { await acao(function () { return API.adminOrganizador(id, val("email"), true); }, "Organizador adicionado", ["memb:" + id]); return; }
       if (k === "editar-grupo") {
         var o = { nome: val("nome"), cidade: val("cidade"), categoria: val("categoria"), descricao: val("descricao") };
@@ -735,7 +882,16 @@
         var online = val("formato") === "online", gid = val("grupo") || f.dataset.g, g = grupo(gid) || {};
         var ini = new Date(val("data") + "T" + val("hi")), fimD = new Date(val("data") + "T" + val("hf"));
         var dados = { titulo: val("titulo"), inicio: ini.toISOString(), fim: fimD.toISOString(), formato: val("formato"), local: online ? "" : val("local") || "A confirmar", endereco: online ? "" : val("endereco"),
-          cidade: online ? "Online" : val("cidade") || (g.cidade !== "Online" ? g.cidade : ""), vagas: Number(val("vagas")) || 40, preco: val("preco") === "" ? null : Number(val("preco")), descricao: val("descricao"), link: val("link"), certificado: !!fd.get("certificado") };
+          cidade: online ? "Online" : val("cidade") || (g.cidade !== "Online" ? g.cidade : ""), vagas: Number(val("vagas")) || 40, descricao: val("descricao"), link: val("link"), certificado: !!fd.get("certificado") };
+        var bn = fd.getAll("b_nome"), bp = fd.getAll("b_preco"), bl = fd.getAll("b_lot"), bd = fd.getAll("b_desc"), bi = fd.getAll("b_id"), usados = {};
+        dados.bilhetes = [];
+        bn.forEach(function (n, x) {
+          n = String(n).trim(); if (!n) return;
+          var bid = String(bi[x] || "").trim() || slugJs(n), k2 = 2, base = bid; while (usados[bid]) bid = base + "-" + k2++; usados[bid] = 1;
+          dados.bilhetes.push({ id: bid, nome: n, preco: String(bp[x]).trim() === "" ? null : Math.max(0, Number(bp[x])), lotacao: String(bl[x]).trim() === "" ? null : Math.max(1, Number(bl[x])), descricao: String(bd[x] || "").trim() });
+        });
+        var nums = dados.bilhetes.map(function (t) { return t.preco; }).filter(function (v) { return v != null; });
+        dados.preco = !dados.bilhetes.length ? 0 : nums.length ? Math.min.apply(null, nums) : null;
         if (isAdmin()) dados.oficial = !!fd.get("oficial");
         if (id) { dados.estado = val("estado") || "publicado"; await acao(function () { return API.editarEvento(id, dados); }, "Evento guardado", ["admin:"]); location.hash = "#/evento/" + id; }
         else { dados.grupo = gid; var nid = await acao(function () { return API.criarEvento(dados); }, "Evento publicado", ["admin:"]); location.hash = "#/evento/" + nid; }

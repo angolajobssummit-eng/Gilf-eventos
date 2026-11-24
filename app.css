@@ -369,3 +369,54 @@ body.busy .btn { pointer-events: none; opacity: .7; }
 .ci--ok { background: var(--ok-l); color: var(--ok); }
 .ci--ja { background: var(--gold-l); color: var(--gold); }
 .ci--mau { background: var(--brand-l); color: var(--brand); }
+
+/* ---- bilhetes e pagamentos ---- */
+.bils .bil { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); }
+.bils .bil:first-child { border-top: 0; padding-top: 0; }
+.bil__p { text-align: right; white-space: nowrap; }
+.bil__p b { color: var(--ink); }
+.tipos { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
+.tipos legend { font-size: .86rem; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.tipo { display: grid !important; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; font-weight: 400 !important; }
+.tipo input { width: auto !important; accent-color: var(--brand); }
+.tipo:has(input:checked) { border-color: var(--brand); background: var(--brand-l); }
+.tipo--off { opacity: .5; cursor: not-allowed; }
+.tipo__n small, .tipo__p small { display: block; color: var(--muted); font-size: .76rem; }
+.tipo__n b, .tipo__p b { color: var(--ink); }
+.tipo__p { text-align: right; white-space: nowrap; }
+.okmark--gold { background: var(--gold-l); color: var(--gold); }
+.paybox { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0; }
+.paybox div { background: var(--soft); border-radius: 10px; padding: 10px; }
+.paybox span { display: block; font-size: .72rem; color: var(--muted); }
+.paybox b { color: var(--ink); font-size: .95rem; word-break: break-word; }
+@media (max-width: 480px) { .paybox { grid-template-columns: 1fr; } }
+.paymeth { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+.paymeth h3 { font-size: .9rem; margin: 0 0 2px; }
+.paymeth p { margin: 0 0 10px; font-size: .88rem; }
+.qr--off { display: grid; place-items: center; text-align: center; font-size: .72rem; color: var(--muted); background: var(--soft); border: 1px dashed var(--line); }
+.bilfs { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; }
+.bilfs legend { font-weight: 700; color: var(--ink); padding: 0 6px; }
+.bilfs .hint { margin: 0; }
+.bilrow { display: grid; grid-template-columns: 1.4fr .8fr .7fr auto; gap: 8px; align-items: end; padding-bottom: 10px; border-bottom: 1px dashed var(--line); }
+.bilrow__d { grid-column: 1 / 4; }
+.bilrow > .btn { grid-row: 1; grid-column: 4; }
+@media (max-width: 560px) { .bilrow { grid-template-columns: 1fr 1fr; } .bilrow__d { grid-column: 1 / -1; } .bilrow > .btn { grid-row: auto; grid-column: 1 / -1; } }
+.stat--ok b { color: var(--ok); }
+.stat--gold b { color: var(--gold); }
+.num { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.two2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 760px) { .two2 { grid-template-columns: 1fr; } }
+
+/* ---- gráfico de receita ---- */
+.chartbox h3 { font-size: .95rem; margin-bottom: 10px; }
+.chartwrap { position: relative; }
+.chart { width: 100%; height: auto; display: block; }
+.chart__grid { stroke: var(--line); stroke-width: 1; }
+.chart__axis { stroke: var(--muted); stroke-width: 1; }
+.chart__lab { fill: var(--muted); font-size: 11px; font-family: var(--sans); }
+.chart__bar { fill: var(--brand); }
+.chart__hit { fill: transparent; }
+.chart__col:hover .chart__hit { fill: var(--soft); }
+.chart__col:hover .chart__bar { fill: var(--brand-d); }
+.chart__tip { position: absolute; top: 0; width: 180px; background: var(--ink); color: var(--bg); font-size: .78rem; padding: 6px 8px; border-radius: 8px; pointer-events: none; text-align: center; }
+.stats .stat--ok b, .stats .stat--gold b { font-size: clamp(1.15rem, 2.2vw, 1.5rem); white-space: nowrap; }
