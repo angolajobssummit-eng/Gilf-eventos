@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GiLF Eventos</title>
+<meta name="description" content="GiLF Eventos — encontre grupos e eventos de líderes, investidores, empreendedores e da diáspora angolana. Um projecto Luadeira Digital Angola, extensão do GiLF.">
+<meta name="theme-color" content="#d61f26">
+<link rel="icon" href="img/gilf-mark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<a class="skip" href="#main">Saltar para o conteúdo</a>
+<header class="top">
+  <div class="wrap top__in">
+    <a class="logo" href="#/" aria-label="GiLF Eventos — início"><img src="img/gilf-mark.png" alt=""><span><b>GiLF</b> Eventos</span></a>
+    <form class="hsearch" id="hsearch" role="search">
+      <input name="q" placeholder="Pesquisar eventos e grupos" aria-label="Pesquisar">
+      <input name="cidade" placeholder="Cidade" aria-label="Cidade" list="dl-cidades">
+      <button type="submit" aria-label="Pesquisar"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
+    </form>
+    <datalist id="dl-cidades"></datalist>
+    <div class="top__r" id="topR"></div>
+  </div>
+</header>
+<div id="demo" class="demo" hidden></div>
+<main id="main" tabindex="-1"></main>
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot__cta"><b>Crie o seu próprio grupo GiLF.</b><a class="btn btn--line btn--sm" href="#/criar-grupo">Começar</a></div>
+    <div class="foot__cols">
+      <div><h4>A sua conta</h4><a href="#/" data-act="registar">Registar</a><a href="#/" data-act="entrar">Entrar</a><a href="#/conta">Os meus eventos</a></div>
+      <div><h4>Descobrir</h4><a href="#/procurar?tipo=grupos">Grupos</a><a href="#/procurar">Eventos</a><a href="#/procurar?formato=online">Eventos online</a><a href="#/" data-goto="categorias">Categorias</a></div>
+      <div><h4>GiLF</h4><a href="https://www.gilf-angola.com" target="_blank" rel="noopener">GiLF Angola 2026</a><a href="#/evento/gilf-2026">Fórum · 17 Dez</a><a id="fWa" href="#" target="_blank" rel="noopener">Contacto WhatsApp</a></div>
+    </div>
+    <div class="foot__base" id="fMarca"></div>
+  </div>
+</footer>
+<div id="modal" class="modal" hidden>
+  <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <button class="modal__x" type="button" aria-label="Fechar" data-close>&times;</button>
+    <div id="mBody"></div>
+  </div>
+</div>
+<script src="vendor/qrcode.js"></script>
+<script src="config.js"></script>
+<script>if (window.GE_CONFIG && GE_CONFIG.supabaseUrl) document.write('<script src="vendor/supabase.js"><\/script>');</script>
+<script src="dados.js"></script>
+<script src="api.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
