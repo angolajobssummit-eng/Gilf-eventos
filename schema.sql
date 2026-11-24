@@ -394,3 +394,24 @@ on conflict (id) do nothing;
 -- ---------- Tornar-se administrador ----------
 -- Depois de criar a sua conta no site, corra (com o SEU email):
 --   update perfis set papel = 'admin' where id = (select id from auth.users where email = 'o-seu-email@exemplo.com');
+
+-- ---------- Optimizações (recomendadas pelo verificador do Supabase) ----------
+create index if not exists comentarios_perfil_idx on comentarios (perfil_id);
+create index if not exists eventos_criado_por_idx on eventos (criado_por);
+create index if not exists eventos_grupo_idx on eventos (grupo_id);
+create index if not exists grupo_membros_perfil_idx on grupo_membros (perfil_id);
+create index if not exists grupos_criado_por_idx on grupos (criado_por);
+create index if not exists inscricoes_perfil_idx on inscricoes (perfil_id);
+create index if not exists publicacoes_perfil_idx on publicacoes (perfil_id);
+-- auth.uid() calculado uma vez por consulta, não por linha
+alter policy perfis_ver on perfis using (id = (select auth.uid()) or is_admin());
+alter policy perfis_editar on perfis using (id = (select auth.uid()) or is_admin());
+alter policy grupos_ver on grupos using (estado = 'aprovado' or criado_por = (select auth.uid()) or is_org(id));
+alter policy grupos_criar on grupos with check ((select auth.uid()) is not null);
+alter policy membros_entrar on grupo_membros with check ((perfil_id = (select auth.uid()) and funcao = 'membro') or is_admin());
+alter policy membros_sair on grupo_membros using (perfil_id = (select auth.uid()) or is_admin());
+alter policy inscricoes_ver on inscricoes using (perfil_id = (select auth.uid()) or is_admin());
+alter policy comentarios_criar on comentarios with check (perfil_id = (select auth.uid()));
+alter policy comentarios_apagar on comentarios using (perfil_id = (select auth.uid()) or is_admin());
+alter policy publicacoes_criar on publicacoes with check (perfil_id = (select auth.uid()) and exists (select 1 from grupo_membros m where m.grupo_id = publicacoes.grupo_id and m.perfil_id = (select auth.uid())));
+alter policy publicacoes_apagar on publicacoes using (perfil_id = (select auth.uid()) or is_org(grupo_id));
