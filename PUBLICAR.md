@@ -18,13 +18,13 @@ Para instalar de novo num projecto Supabase vazio: **SQL Editor** → **New quer
 ## 2. Site — Vercel
 1. Entre em **vercel.com** com a conta GitHub → **Add New → Project**.
 2. Escolha o repositório **`gilf-eventos`** → **Framework Preset: Other**, sem *Build Command* → **Deploy**.
-3. Fica com um endereço como `https://gilf-eventos.vercel.app`. O endereço de produção é público.
+3. Fica com um endereço como `https://gilf-evento.com`. O endereço de produção é público.
 4. (Opcional) **Settings → Domains** → `eventos.gilf-angola.com`, e siga as instruções de DNS.
 
 ## 3. Ligar o login ao endereço do site
 No Supabase: **Authentication → URL Configuration**:
-- **Site URL**: `https://gilf-eventos.vercel.app` (ou o seu domínio).
-- **Redirect URLs**: acrescente `https://gilf-eventos.vercel.app/**`.
+- **Site URL**: `https://gilf-evento.com` (ou o seu domínio).
+- **Redirect URLs**: acrescente `https://gilf-evento.com/**`.
 
 Sem isto, os links dos emails de confirmação e de recuperação de palavra-passe não abrem o site.
 
